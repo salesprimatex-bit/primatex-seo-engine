@@ -75,7 +75,15 @@ export default function App() {
     const parts = content.split("---SEO-DATA-START---");
     const articleMarkdown = parts[0] || "";
     const seoDataMarkdown = parts[1] || "";
+const articleHtml = marked.parse(articleMarkdown);
 
+if (seoDataMarkdown.trim()) {
+  const cleanSeo = seoDataMarkdown
+    .replace(/DATA SEO YANG DIBUTUHKAN:/i, "")
+    .trim();
+
+  sendToGoogleSheets(cleanSeo, articleHtml, formData);
+}
     // Try to extract "Judul Artikel" from the SEO data for filename
     let extractedTitle = "";
     if (seoDataMarkdown) {
@@ -167,7 +175,35 @@ export default function App() {
   const handleDownloadHTML = () => {
     triggerDownloads(result);
   };
+const sendToGoogleSheets = async (seoData, articleHtml, formData) => {
+  try {
+    const row = seoData.split("\t");
 
+    const payload = {
+      keyword: formData.keywordUtama,
+      anchorUtama: formData.keywordArtikelUtama,
+      urlUtama: formData.urlArtikelUtama,
+      anchorPilar: formData.keywordPilar,
+      urlPilar: formData.urlArtikelPilar,
+      konten: articleHtml,
+
+      judul: row[0] || "",
+      judul_seo: row[1] || "",
+      slug: row[2] || "",
+      meta_deskripsi: row[3] || "",
+      kutipan: row[4] || "",
+      tag: row[5] || ""
+    };
+
+    await fetch("https://script.google.com/macros/s/AKfycbw16siszKjHHM5qFd7ExU7YmIvUC7z326yrop7_wKWZNjph25_ET85ECgXqtGCNosWX/exec", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+  } catch (err) {
+    console.error("Gagal kirim ke Sheets:", err);
+  }
+};
   return (
     <div className="min-h-screen bg-[#F5F5F0] text-[#141414] font-sans selection:bg-primary selection:text-primary-foreground">
       {/* Header */}
