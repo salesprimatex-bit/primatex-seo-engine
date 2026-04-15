@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { generateArticle } from "./lib/gemini";
 import { ArticleFormData } from "./types";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,16 @@ export default function App() {
   const [result, setResult] = useState("");
   const [copiedArticle, setCopiedArticle] = useState(false);
   const [copiedSeo, setCopiedSeo] = useState(false);
+  const [sheetData, setSheetData] = useState([]);
+
+  useEffect(() => {
+  fetch("https://script.google.com/macros/s/AKfycbxT896BbOjtRgiJKAWdLjrThrGfKAruCI45re7P1NFp84SfIqTeQgy1cAz3gUke_kft/exec")
+    .then(res => res.json())
+    .then(data => {
+      setSheetData(data);
+    })
+    .catch(err => console.error("Error fetch sheet:", err));
+}, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -208,6 +218,31 @@ export default function App() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                   <Label>Pilih Data dari Sheet</Label>
+                    <select
+                      className="w-full h-10 rounded-md border px-3 bg-[#F9F9F9]"
+                      onChange={(e) => {
+                        const item = sheetData[e.target.value];
+                        if (!item) return;
+                        setFormData({
+        keywordUtama: item.keyword,
+        keywordArtikelUtama: item.anchor_artikel_utama,
+        urlArtikelUtama: item.url_artikel_utama,
+        keywordPilar: item.anchor_artikel_pilar,
+        urlArtikelPilar: item.url_artikel_pilar,
+      });
+    }}
+  >
+    <option value="">Pilih Keyword</option>
+    {sheetData.map((item, i) => (
+      <option key={i} value={i}>
+        {item.keyword}
+      </option>
+    ))}
+  </select>
+</div>
+
                   <div className="space-y-2">
                     <Label htmlFor="keywordUtama">Kata Kunci Utama (H1)</Label>
                     <Input
