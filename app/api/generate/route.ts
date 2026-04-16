@@ -19,7 +19,7 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const result = await generateArticle({
+    const result = await generateWithGemini({
       frasaKunci,
       anchorText1,
       url1,
@@ -42,37 +42,76 @@ export async function POST(req: Request) {
 
 
 // =======================
-// GENERATOR UTAMA
+// GEMINI GENERATOR
 // =======================
-async function generateArticle(data: any) {
+async function generateWithGemini(data: any) {
 
-  const slug = data.frasaKunci
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '')
-    .replace(/\s+/g, '-');
+  const prompt = `
+Buat artikel SEO lengkap dalam format JSON.
 
-  const html = `
-<article>
-  <h1>${data.frasaKunci}</h1>
-  <p>Artikel tentang ${data.frasaKunci} dengan internal link:</p>
+OUTPUT WAJIB JSON VALID TANPA PENJELASAN:
 
-  <p>
-    <a href="${data.url1}">${data.anchorText1}</a> dan 
-    <a href="${data.url2}">${data.anchorText2}</a>
-  </p>
+{
+  "konten": "HTML artikel lengkap",
+  "judul": "",
+  "judul_seo": "",
+  "slug": "",
+  "meta_deskripsi": "",
+  "kutipan": "",
+  "tag": ""
+}
 
-  <h2>Penjelasan</h2>
-  <p>Konten SEO panjang di sini...</p>
-</article>
-  `;
+DATA:
+- Frasa Kunci: ${data.frasaKunci}
+- Anchor 1: ${data.anchorText1} (${data.url1})
+- Anchor 2: ${data.anchorText2} (${data.url2})
 
-  return {
-    konten: html.trim(),
-    judul: data.frasaKunci,
-    judul_seo: `${data.frasaKunci} | Primatex`,
-    slug,
-    meta_deskripsi: `Informasi lengkap tentang ${data.frasaKunci}`,
-    kutipan: `Ringkasan ${data.frasaKunci}`,
-    tag: `${data.frasaKunci}, geotextile, primatex`
-  };
+Aturan:
+- konten harus HTML
+- gunakan internal link di anchor
+- panjang 1000+ kata
+- slug pakai dash
+`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }]
+          }
+        ]
+      })
+    }
+  );
+
+  const json = await response.json();
+
+  // 🔥 DEBUG (WAJIB kalau error)
+  console.log(JSON.stringify(json));
+
+  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  if (!text) {
+    throw new Error('Response Gemini kosong');
+  }
+
+  // 🔥 Bersihin jika Gemini nambah ```json
+  const cleaned = text
+    .replace(/```json/g, '')
+    .replace(/```/g, '')
+    .trim();
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    throw new Error('JSON tidak valid dari Gemini:\n' + cleaned);
+  }
+
+  return parsed;
 }
