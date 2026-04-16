@@ -19,13 +19,7 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const result = await generateWithGemini({
-      frasaKunci,
-      anchorText1,
-      url1,
-      anchorText2,
-      url2,
-    });
+    const result = await generateRobust(body);
 
     return NextResponse.json({
       success: true,
@@ -41,18 +35,40 @@ export async function POST(req: Request) {
 }
 
 
-// =======================
-// GEMINI GENERATOR
-// =======================
-async function generateWithGemini(data: any) {
+// =============================
+// MAIN ROBUST GENERATOR
+// =============================
+async function generateRobust(data: any) {
+  let lastError = '';
 
+  // 🔁 RETRY 3x
+  for (let i = 0; i < 3; i++) {
+    try {
+      const result = await callGemini(data);
+      const valid = validateResult(result);
+
+      if (valid) return result;
+
+      lastError = 'Format tidak valid';
+    } catch (err: any) {
+      lastError = err.message;
+    }
+  }
+
+  // 🆘 FALLBACK
+  return fallbackGenerator(data, lastError);
+}
+
+
+// =============================
+// GEMINI CALL
+// =============================
+async function callGemini(data: any) {
   const prompt = `
-Buat artikel SEO lengkap dalam format JSON.
-
-OUTPUT WAJIB JSON VALID TANPA PENJELASAN:
+BALAS HANYA JSON VALID TANPA PENJELASAN.
 
 {
-  "konten": "HTML artikel lengkap",
+  "konten": "",
   "judul": "",
   "judul_seo": "",
   "slug": "",
@@ -61,57 +77,87 @@ OUTPUT WAJIB JSON VALID TANPA PENJELASAN:
   "tag": ""
 }
 
-DATA:
-- Frasa Kunci: ${data.frasaKunci}
-- Anchor 1: ${data.anchorText1} (${data.url1})
-- Anchor 2: ${data.anchorText2} (${data.url2})
-
-Aturan:
-- konten harus HTML
-- gunakan internal link di anchor
-- panjang 1000+ kata
-- slug pakai dash
+Topik: ${data.frasaKunci}
+Gunakan internal link:
+- ${data.anchorText1} (${data.url1})
+- ${data.anchorText2} (${data.url2})
 `;
 
-  const response = await fetch(
+  const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ]
+        contents: [{ parts: [{ text: prompt }] }]
       })
     }
   );
 
-  const json = await response.json();
+  const json = await res.json();
 
-  // 🔥 DEBUG (WAJIB kalau error)
-  console.log(JSON.stringify(json));
+  const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-  const text = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!raw) throw new Error('Gemini kosong');
 
-  if (!text) {
-    throw new Error('Response Gemini kosong');
-  }
+  const cleaned = cleanJSON(raw);
 
-  // 🔥 Bersihin jika Gemini nambah ```json
-  const cleaned = text
+  return JSON.parse(cleaned);
+}
+
+
+// =============================
+// CLEANER (ANTI ERROR)
+// =============================
+function cleanJSON(text: string) {
+  return text
     .replace(/```json/g, '')
     .replace(/```/g, '')
+    .replace(/\n/g, ' ')
     .trim();
+}
 
-  let parsed;
 
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error('JSON tidak valid dari Gemini:\n' + cleaned);
-  }
+// =============================
+// VALIDATOR
+// =============================
+function validateResult(obj: any) {
+  return (
+    obj &&
+    obj.konten &&
+    obj.judul &&
+    obj.slug &&
+    obj.meta_deskripsi
+  );
+}
 
-  return parsed;
+
+// =============================
+// FALLBACK GENERATOR (ANTI FAIL)
+// =============================
+function fallbackGenerator(data: any, error: string) {
+
+  const slug = data.frasaKunci
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, '-');
+
+  return {
+    konten: `
+<article>
+<h1>${data.frasaKunci}</h1>
+<p>Konten fallback karena AI error: ${error}</p>
+<p>
+<a href="${data.url1}">${data.anchorText1}</a> |
+<a href="${data.url2}">${data.anchorText2}</a>
+</p>
+</article>
+    `,
+    judul: data.frasaKunci,
+    judul_seo: `${data.frasaKunci} | Primatex`,
+    slug,
+    meta_deskripsi: `Artikel tentang ${data.frasaKunci}`,
+    kutipan: `Ringkasan ${data.frasaKunci}`,
+    tag: `${data.frasaKunci}, geotextile`,
+  };
 }
