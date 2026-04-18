@@ -379,11 +379,21 @@ export default function App() {
                       className="h-full flex flex-col"
                     >
                       <Tabs defaultValue="preview" className="w-full flex-1 flex flex-col">
-                        <div className="px-6 py-2 border-b bg-muted/30">
+                        <div className="px-6 py-2 border-b bg-muted/30 flex items-center justify-between">
                           <TabsList className="bg-transparent gap-4">
                             <TabsTrigger value="preview" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Preview</TabsTrigger>
                             <TabsTrigger value="html" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">HTML Code</TabsTrigger>
                           </TabsList>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={copyArticleHtml} className="gap-2 h-8 text-xs font-normal border-border/50 hover:bg-white transition-all">
+                              {copiedArticle ? <Check className="w-3 h-3 text-green-500" /> : <FileCode className="w-3 h-3 text-primary" />}
+                              {copiedArticle ? "HTML Tersalin" : "Salin HTML (Artikel)"}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={copySeoTxt} className="gap-2 h-8 text-xs font-normal border-border/50 hover:bg-white transition-all">
+                              {copiedSeo ? <Check className="w-3 h-3 text-green-500" /> : <FileText className="w-3 h-3 text-blue-500" />}
+                              {copiedSeo ? "Data SEO Tersalin" : "Salin Data SEO (TXT)"}
+                            </Button>
+                          </div>
                         </div>
                         <ScrollArea className="flex-1 h-[calc(100vh-320px)]">
                           <TabsContent value="preview" className="p-6 m-0 space-y-8">
