@@ -71,9 +71,6 @@ useEffect(() => {
     );
   }, 500);
 }
-
-
-}, []);
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState("");
   const [copiedArticle, setCopiedArticle] = useState(false);
