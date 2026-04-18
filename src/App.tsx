@@ -37,7 +37,13 @@ import { marked } from "marked";
 
 export default function App() {
   const [formData, setFormData] = useState<ArticleFormData>({
-    useEffect(() => {
+    keywordUtama: "",
+    keywordArtikelUtama: "",
+    urlArtikelUtama: "",
+    keywordPilar: "",
+    urlArtikelPilar: "",
+  });
+useEffect(() => {
   const params = new URLSearchParams(window.location.search);
 
   const frasa = params.get("frasa");
@@ -57,13 +63,6 @@ export default function App() {
     }));
   }
 }, []);
-
-    keywordUtama: "",
-    keywordArtikelUtama: "",
-    urlArtikelUtama: "",
-    keywordPilar: "",
-    urlArtikelPilar: "",
-  });
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState("");
