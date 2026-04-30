@@ -1,10 +1,14 @@
-export default function handler(req, res) {
-  if (req.method === 'POST') {
-    return res.status(200).json({
-      message: "API hidup",
-      data: req.body
-    });
-  }
+function testAPI() {
+  const response = UrlFetchApp.fetch("https://primatex-seo-engine.vercel.app/api/generate", {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      keyword: "Test Geomembrane",
+      anchorText: "Geomembrane",
+      url: "https://primatex.co.id/",
+      anchors: ["1","2","3","4","5","6","7","8","9","10"]
+    })
+  });
 
-  return res.status(405).json({ error: "Method not allowed" });
+  Logger.log(response.getContentText());
 }
