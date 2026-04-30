@@ -1,14 +1,19 @@
-function testAPI() {
-  const response = UrlFetchApp.fetch("https://primatex-seo-engine.vercel.app/api/generate", {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({
-      keyword: "Test Geomembrane",
-      anchorText: "Geomembrane",
-      url: "https://primatex.co.id/",
-      anchors: ["1","2","3","4","5","6","7","8","9","10"]
-    })
-  });
+export default async function handler(req, res) {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
 
-  Logger.log(response.getContentText());
+    const body = req.body;
+
+    return res.status(200).json({
+      message: "API OK",
+      received: body
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message
+    });
+  }
 }
