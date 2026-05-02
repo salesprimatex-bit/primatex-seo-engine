@@ -24,6 +24,7 @@ import {
   Download, 
   Code, 
   FileCode, 
+  Table,
   ChevronDown 
 } from "lucide-react";
 import {
@@ -45,20 +46,78 @@ export default function App() {
     urlArtikelPilar: "",
   });
 
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [sendSuccess, setSendSuccess] = useState(false);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [result, setResult] = useState("");
   const [copiedArticle, setCopiedArticle] = useState(false);
   const [copiedSeo, setCopiedSeo] = useState(false);
+  const [copiedSheet, setCopiedSheet] = useState(false);
+
+  const autoSendToSheet = async (content: string) => {
+    if (isSending) return;
+    
+    setIsSending(true);
+    setSendError("");
+    setSendSuccess(false);
+
+    try {
+      const parts = content.split("---SEO-DATA-START---");
+      const articleMarkdown = parts[0] || "";
+      const seoDataMarkdown = parts[1] || "";
+      
+      const articleHtml = marked.parse(articleMarkdown) as string;
+      const cleanSeoData = seoDataMarkdown.replace(/DATA SEO YANG DIBUTUHKAN:/i, "").trim();
+      const seoCells = cleanSeoData.split("\t").map(c => c.trim());
+
+      const payload = {
+        konten: articleHtml,
+        judul: seoCells[0] || "",
+        judul_s: seoCells[1] || "",
+        slug: seoCells[2] || "",
+        meta_: seoCells[3] || "",
+        kutipan: seoCells[4] || "",
+        tag: seoCells[5] || ""
+      };
+
+      // Call our backend API instead of fetching GAS directly
+      const response = await fetch("/api/send-to-sheet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Gagal mengirim data.");
+      }
+
+      setSendSuccess(true);
+      setTimeout(() => setSendSuccess(false), 3000);
+    } catch (error: any) {
+      console.error("Error sending to sheet:", error);
+      setSendError(error.message || "Gagal mengirim data otomatis ke Sheet.");
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   // Common regeneration logic
   const handleRegenerate = async (data: ArticleFormData) => {
     if (isGenerating) return;
     setIsGenerating(true);
+    setSendError("");
     try {
       const article = await generateArticle(data);
       setResult(article);
       // Automatically trigger downloads
       triggerDownloads(article);
+      // Automatically send to sheet
+      autoSendToSheet(article);
     } catch (error) {
       console.error(error);
       alert("Terjadi kesalahan saat membuat artikel. Silakan coba lagi.");
@@ -186,6 +245,26 @@ export default function App() {
     setTimeout(() => setCopiedSeo(false), 2000);
   };
 
+  const copyForSpreadsheet = () => {
+    const parts = result.split("---SEO-DATA-START---");
+    const articleMarkdown = parts[0] || "";
+    const seoDataMarkdown = parts[1] || "";
+    
+    const articleHtml = marked.parse(articleMarkdown) as string;
+    const cleanSeoData = seoDataMarkdown.replace(/DATA SEO YANG DIBUTUHKAN:/i, "").trim();
+    
+    // Escape double quotes in HTML and wrap it to keep it in one cell
+    // Also remove potential tabs in HTML to not break TSV structure
+    const safeHtml = `"${articleHtml.replace(/"/g, '""')}"`;
+    
+    // Combine: HTML (Col G) + SEO Data (Col H-M)
+    const combined = `${safeHtml}\t${cleanSeoData}`;
+    
+    navigator.clipboard.writeText(combined);
+    setCopiedSheet(true);
+    setTimeout(() => setCopiedSheet(false), 2000);
+  };
+
   const downloadFile = (content: string, filename: string, contentType: string) => {
     const blob = new Blob([content], { type: contentType });
     const url = URL.createObjectURL(blob);
@@ -311,6 +390,23 @@ export default function App() {
                     </div>
                   </div>
 
+                  <div className="min-h-[20px] mt-1 text-center">
+                    {sendError && <p className="text-[10px] text-red-500 font-medium">{sendError}</p>}
+                    {sendSuccess && (
+                      <motion.p 
+                        initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }}
+                        className="text-[10px] text-green-600 font-bold flex items-center justify-center gap-1"
+                      >
+                        <Check className="w-3 h-3" /> Data terkirim ke Sheet!
+                      </motion.p>
+                    )}
+                    {isSending && (
+                      <p className="text-[10px] text-blue-500 animate-pulse flex items-center justify-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Mengirim data...
+                      </p>
+                    )}
+                  </div>
+
                   <Button 
                     type="submit" 
                     className="w-full mt-6 h-11 text-base font-medium" 
@@ -419,6 +515,20 @@ export default function App() {
                             <TabsTrigger value="html" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">HTML Code</TabsTrigger>
                           </TabsList>
                           <div className="flex items-center gap-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => autoSendToSheet(result)} 
+                              disabled={isSending}
+                              className="gap-2 h-8 text-xs font-bold border-blue-200 bg-blue-50/50 hover:bg-blue-100/50 text-blue-700 transition-all"
+                            >
+                              {isSending ? <Loader2 className="w-3 h-3 animate-spin" /> : (sendSuccess ? <Check className="w-3 h-3 text-green-500" /> : <Send className="w-3 h-3" />)}
+                              {isSending ? "Mengirim..." : (sendSuccess ? "Data Terkirim" : "Kirim ke Sheet")}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={copyForSpreadsheet} className="gap-2 h-8 text-xs font-bold border-green-200 bg-green-50/50 hover:bg-green-100/50 text-green-700 transition-all">
+                              {copiedSheet ? <Check className="w-3 h-3" /> : <Table className="w-3 h-3" />}
+                              {copiedSheet ? "Data Baris Tersalin" : "Salin Baris Spreadsheet (G-M)"}
+                            </Button>
                             <Button variant="outline" size="sm" onClick={copyArticleHtml} className="gap-2 h-8 text-xs font-normal border-border/50 hover:bg-white transition-all">
                               {copiedArticle ? <Check className="w-3 h-3 text-green-500" /> : <FileCode className="w-3 h-3 text-primary" />}
                               {copiedArticle ? "HTML Tersalin" : "Salin HTML (Artikel)"}
@@ -444,10 +554,26 @@ export default function App() {
                                     <h3 className="m-0 text-xl font-bold text-blue-900">DATA SEO YANG DIBUTUHKAN</h3>
                                     <p className="text-xs text-blue-600/80">Data ini siap untuk ditempel ke spreadsheet atau CMS Anda.</p>
                                   </div>
-                                  <Button variant="outline" size="sm" onClick={copySeoTxt} className="gap-2 h-9 bg-white border-blue-200 hover:bg-blue-50 text-blue-700">
-                                    {copiedSeo ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                                    {copiedSeo ? "Data SEO Tersalin" : "Salin Data SEO (TXT)"}
-                                  </Button>
+                                  <div className="flex items-center gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => autoSendToSheet(result)} 
+                                      disabled={isSending}
+                                      className="gap-2 h-9 border-blue-200 bg-white hover:bg-blue-50 text-blue-800 font-bold"
+                                    >
+                                      {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : (sendSuccess ? <Check className="w-4 h-4 text-green-500" /> : <Send className="w-4 h-4" />)}
+                                      {isSending ? "Sedang Mengirim..." : (sendSuccess ? "Berhasil dikirim" : "Kirim ke Spreadsheet")}
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={copyForSpreadsheet} className="gap-2 h-9 bg-white border-green-200 hover:bg-green-50 text-green-700 font-bold">
+                                      {copiedSheet ? <Check className="w-4 h-4 text-green-500" /> : <Table className="w-4 h-4" />}
+                                      {copiedSheet ? "Data Berhasil Tersalin" : "Salin untuk Spreadsheet (G-M)"}
+                                    </Button>
+                                    <Button variant="outline" size="sm" onClick={copySeoTxt} className="gap-2 h-9 bg-white border-blue-200 hover:bg-blue-50 text-blue-700">
+                                      {copiedSeo ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                                      {copiedSeo ? "Data SEO Tersalin" : "Salin Data SEO (TXT)"}
+                                    </Button>
+                                  </div>
                                 </div>
                                 <div 
                                   className="p-5 bg-white rounded-lg overflow-x-auto font-mono text-sm whitespace-pre border border-blue-100 shadow-inner text-blue-900"
