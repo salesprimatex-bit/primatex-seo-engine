@@ -91,9 +91,21 @@ export default function App() {
         body: JSON.stringify(payload),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Gagal mengirim data.");
+      let errorMessage = "Gagal mengirim data otomatis ke Sheet.";
+      
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await response.json();
+        if (!response.ok) {
+          errorMessage = data.error || errorMessage;
+          throw new Error(errorMessage);
+        }
+      } else {
+        const text = await response.text();
+        if (!response.ok) {
+          errorMessage = `Server Error (${response.status}): ${text.substring(0, 100)}...`;
+          throw new Error(errorMessage);
+        }
       }
 
       setSendSuccess(true);
