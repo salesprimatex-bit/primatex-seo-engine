@@ -75,9 +75,9 @@ export default function App() {
       const payload = {
         konten: articleHtml,
         judul: seoCells[0] || "",
-        judul_s: seoCells[1] || "",
+        judul_seo: seoCells[1] || "",
         slug: seoCells[2] || "",
-        meta_: seoCells[3] || "",
+        meta_deskripsi: seoCells[3] || "",
         kutipan: seoCells[4] || "",
         tag: seoCells[5] || ""
       };
