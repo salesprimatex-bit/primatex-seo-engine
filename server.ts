@@ -27,7 +27,7 @@ app.post("/api/send-to-sheet", async (req, res) => {
     const response = await fetch(gasUrl, {
       method: "POST",
       headers: {
-        "Content-Type": "text/plain;charset=utf-8",
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(req.body),
       redirect: "follow"
@@ -38,7 +38,12 @@ app.post("/api/send-to-sheet", async (req, res) => {
     } else {
       const errorText = await response.text();
       console.error("GAS Error Response:", errorText);
-      res.status(response.status).json({ error: "Gagal mengirim data. Pastikan Apps Script dideploy sebagai 'Anyone' dan 'Execute as: Me'." });
+      // Jika 405, berikan pesan yang lebih jelas kepada user
+      const message = response.status === 405 
+        ? "Method Not Allowed (405): Pastikan skrip GAS Anda memiliki fungsi doPost(e) dan sudah di-deploy sebagai Web App (Anyone)."
+        : `Gagal mengirim data (Status: ${response.status})`;
+      
+      res.status(response.status).json({ error: message });
     }
   } catch (error: any) {
     console.error("Proxy Error:", error);
